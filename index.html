@@ -1,0 +1,900 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Finger Beat Blocks</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07090d;
+      --ink: #f6fbff;
+      --muted: #b7c2d6;
+      --panel: rgba(10, 14, 24, 0.84);
+      --line: rgba(255, 255, 255, 0.18);
+      --cyan: #28e4ff;
+      --pink: #ff4db8;
+      --lime: #bbff58;
+      --amber: #ffc247;
+      --red: #ff5268;
+      --violet: #9b7cff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Arial, "Malgun Gothic", sans-serif;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+    }
+
+    .game {
+      position: relative;
+      width: min(100vw, 1180px);
+      height: min(100vh, 780px);
+      min-height: 580px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(90deg, rgba(40, 228, 255, 0.08) 1px, transparent 1px),
+        linear-gradient(rgba(255, 77, 184, 0.07) 1px, transparent 1px),
+        radial-gradient(circle at 50% 50%, rgba(155, 124, 255, 0.14), transparent 42%),
+        #07090d;
+      background-size: 72px 72px, 72px 72px, auto, auto;
+    }
+
+    video,
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    video {
+      object-fit: cover;
+      transform: scaleX(-1);
+      opacity: 0.24;
+      filter: saturate(1.22) contrast(1.08);
+    }
+
+    canvas {
+      display: block;
+    }
+
+    .scanline {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.035) 0,
+        rgba(255, 255, 255, 0.035) 1px,
+        transparent 1px,
+        transparent 8px
+      );
+      mix-blend-mode: screen;
+    }
+
+    .hud {
+      position: absolute;
+      inset: 16px 16px auto 16px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      pointer-events: none;
+    }
+
+    .title,
+    .stat,
+    .dialog,
+    .toast {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      backdrop-filter: blur(10px);
+    }
+
+    .title {
+      display: grid;
+      gap: 5px;
+      padding: 12px 14px;
+    }
+
+    .title strong {
+      font-size: 18px;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .title span {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .stats {
+      display: flex;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .stat {
+      min-width: 92px;
+      padding: 10px 12px;
+      text-align: center;
+    }
+
+    .stat span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .stat strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    #score {
+      color: var(--cyan);
+    }
+
+    #combo {
+      color: var(--pink);
+    }
+
+    #miss {
+      color: var(--amber);
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 22px;
+      background: rgba(7, 9, 13, 0.66);
+    }
+
+    .dialog {
+      width: min(520px, 100%);
+      padding: 26px;
+      text-align: center;
+      box-shadow: 0 0 48px rgba(255, 77, 184, 0.24);
+    }
+
+    .dialog h1 {
+      margin: 0 0 12px;
+      font-size: clamp(34px, 7vw, 58px);
+      line-height: 0.96;
+      letter-spacing: 0;
+    }
+
+    .dialog p {
+      margin: 0 0 20px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.65;
+      word-break: keep-all;
+    }
+
+    .controls {
+      display: grid;
+      gap: 10px;
+    }
+
+    button {
+      width: 100%;
+      min-height: 48px;
+      border: 0;
+      background: linear-gradient(90deg, var(--cyan), var(--pink));
+      color: #04050a;
+      font: inherit;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--ink);
+    }
+
+    button:disabled {
+      cursor: wait;
+      opacity: 0.74;
+    }
+
+    button:focus-visible {
+      outline: 3px solid var(--lime);
+      outline-offset: 3px;
+    }
+
+    .hint {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 14px;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+      pointer-events: none;
+      text-shadow: 0 1px 8px #000;
+    }
+
+    .toast {
+      position: absolute;
+      left: 50%;
+      bottom: 50px;
+      width: min(540px, calc(100% - 24px));
+      padding: 11px 14px;
+      color: var(--muted);
+      text-align: center;
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    @media (max-width: 760px) {
+      .game {
+        width: 100vw;
+        height: 100vh;
+        min-height: 100vh;
+        border: 0;
+      }
+
+      .hud {
+        inset: 10px 10px auto 10px;
+      }
+
+      .title {
+        display: none;
+      }
+
+      .stats {
+        width: 100%;
+        justify-content: space-between;
+        gap: 7px;
+      }
+
+      .stat {
+        min-width: 0;
+        flex: 1;
+        padding: 8px 7px;
+      }
+
+      .stat strong {
+        font-size: 20px;
+      }
+
+      .hint {
+        font-size: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="game" aria-label="Finger Beat Blocks game">
+    <video id="camera" playsinline muted></video>
+    <canvas id="stage"></canvas>
+    <div class="scanline"></div>
+
+    <div class="hud">
+      <div class="title">
+        <strong>FINGER BEAT BLOCKS</strong>
+        <span>검지 손가락으로 네온 블록을 깨세요</span>
+      </div>
+      <div class="stats">
+        <div class="stat"><span>점수</span><strong id="score">0</strong></div>
+        <div class="stat"><span>콤보</span><strong id="combo">0</strong></div>
+        <div class="stat"><span>미스</span><strong id="miss">0</strong></div>
+      </div>
+    </div>
+
+    <section id="overlay" class="overlay">
+      <div class="dialog">
+        <h1 id="headline">Finger Beat Blocks</h1>
+        <p id="message">카메라로 검지 손가락을 인식해 위와 아래에서 날아오는 블록을 맞히세요. 카메라가 없어도 마우스 연습 모드로 바로 플레이할 수 있습니다.</p>
+        <div class="controls">
+          <button id="start">카메라 켜고 시작</button>
+          <button id="practice" class="secondary">마우스로 연습</button>
+        </div>
+      </div>
+    </section>
+
+    <div id="toast" class="toast hidden">손을 카메라 앞에 보여주세요.</div>
+    <div class="hint">카메라 모드: 검지 손가락 이동 · 연습 모드: 마우스 이동 · 스페이스바: 일시정지</div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script>
+    const video = document.querySelector("#camera");
+    const canvas = document.querySelector("#stage");
+    const ctx = canvas.getContext("2d");
+    const overlay = document.querySelector("#overlay");
+    const headlineNode = document.querySelector("#headline");
+    const messageNode = document.querySelector("#message");
+    const startButton = document.querySelector("#start");
+    const practiceButton = document.querySelector("#practice");
+    const scoreNode = document.querySelector("#score");
+    const comboNode = document.querySelector("#combo");
+    const missNode = document.querySelector("#miss");
+    const toast = document.querySelector("#toast");
+
+    const blocks = [];
+    const sparks = [];
+    const lanes = [0.16, 0.32, 0.5, 0.68, 0.84];
+    const colors = ["#28e4ff", "#ff4db8", "#bbff58", "#ffc247", "#9b7cff"];
+    const pointer = {
+      x: 0,
+      y: 0,
+      targetX: 0,
+      targetY: 0,
+      radius: 25,
+      visible: false,
+      practice: false
+    };
+    const state = {
+      running: false,
+      paused: false,
+      score: 0,
+      combo: 0,
+      miss: 0,
+      beat: 0,
+      spawnTimer: 0,
+      time: 0,
+      last: 0,
+      penaltyFlash: 0,
+      mediaReady: false,
+      loopId: 0
+    };
+    const sound = {
+      context: null,
+      master: null,
+      enabled: false
+    };
+
+    let hands = null;
+    let camera = null;
+
+    function ensureSound() {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return false;
+      if (!sound.context) {
+        sound.context = new AudioContext();
+        sound.master = sound.context.createGain();
+        sound.master.gain.value = 0.22;
+        sound.master.connect(sound.context.destination);
+      }
+      if (sound.context.state === "suspended") {
+        sound.context.resume();
+      }
+      sound.enabled = true;
+      return true;
+    }
+
+    function playTone(frequency, duration, type, volume, when = 0) {
+      if (!sound.enabled || !sound.context) return;
+      const now = sound.context.currentTime + when;
+      const osc = sound.context.createOscillator();
+      const gain = sound.context.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(frequency, now);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(volume, now + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      osc.connect(gain);
+      gain.connect(sound.master);
+      osc.start(now);
+      osc.stop(now + duration + 0.02);
+    }
+
+    function playNoise(duration, volume) {
+      if (!sound.enabled || !sound.context) return;
+      const sampleRate = sound.context.sampleRate;
+      const frameCount = Math.max(1, Math.floor(sampleRate * duration));
+      const buffer = sound.context.createBuffer(1, frameCount, sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < frameCount; i += 1) {
+        data[i] = (Math.random() * 2 - 1) * (1 - i / frameCount);
+      }
+      const source = sound.context.createBufferSource();
+      const filter = sound.context.createBiquadFilter();
+      const gain = sound.context.createGain();
+      source.buffer = buffer;
+      filter.type = "highpass";
+      filter.frequency.value = 850;
+      gain.gain.value = volume;
+      source.connect(filter);
+      filter.connect(gain);
+      gain.connect(sound.master);
+      source.start();
+    }
+
+    function playHitSound(combo) {
+      const lift = Math.min(combo, 12) * 18;
+      playTone(420 + lift, 0.075, "triangle", 0.2);
+      playTone(820 + lift, 0.09, "sine", 0.15, 0.035);
+      playNoise(0.045, 0.035);
+    }
+
+    function playMissSound() {
+      playTone(190, 0.16, "sawtooth", 0.16);
+      playTone(110, 0.2, "sine", 0.12, 0.04);
+    }
+
+    function sayMissLine() {
+      if (!("speechSynthesis" in window)) return;
+      const voice = new SpeechSynthesisUtterance("아이쿠");
+      voice.lang = "ko-KR";
+      voice.rate = 1.15;
+      voice.pitch = 1.35;
+      voice.volume = 0.9;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(voice);
+    }
+
+    function playStartSound() {
+      playTone(330, 0.08, "triangle", 0.15);
+      playTone(494, 0.08, "triangle", 0.16, 0.08);
+      playTone(740, 0.12, "triangle", 0.17, 0.16);
+    }
+
+    function playPauseSound() {
+      playTone(520, 0.08, "sine", 0.12);
+      playTone(310, 0.12, "sine", 0.1, 0.07);
+    }
+
+    function width() {
+      return canvas.clientWidth;
+    }
+
+    function height() {
+      return canvas.clientHeight;
+    }
+
+    function resize() {
+      const rect = canvas.getBoundingClientRect();
+      const scale = window.devicePixelRatio || 1;
+      canvas.width = Math.floor(rect.width * scale);
+      canvas.height = Math.floor(rect.height * scale);
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      if (!pointer.visible) {
+        pointer.x = pointer.targetX = width() / 2;
+        pointer.y = pointer.targetY = height() * 0.5;
+      }
+      draw();
+    }
+
+    function updateHud() {
+      scoreNode.textContent = state.score;
+      comboNode.textContent = state.combo;
+      missNode.textContent = state.miss;
+    }
+
+    function setOverlay(title, body, buttonText) {
+      headlineNode.textContent = title;
+      messageNode.textContent = body;
+      startButton.textContent = buttonText;
+      overlay.classList.remove("hidden");
+    }
+
+    function showToast(text) {
+      toast.textContent = text;
+      toast.classList.remove("hidden");
+    }
+
+    function hideToast() {
+      toast.classList.add("hidden");
+    }
+
+    function rand(min, max) {
+      return min + Math.random() * (max - min);
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function resetRound(practice) {
+      ensureSound();
+      cancelAnimationFrame(state.loopId);
+      blocks.length = 0;
+      sparks.length = 0;
+      pointer.practice = practice;
+      pointer.visible = practice;
+      pointer.x = pointer.targetX = width() / 2;
+      pointer.y = pointer.targetY = height() * 0.5;
+      state.running = true;
+      state.paused = false;
+      state.score = 0;
+      state.combo = 0;
+      state.miss = 0;
+      state.beat = 0;
+      state.spawnTimer = 0.18;
+      state.time = 0;
+      state.last = performance.now();
+      state.penaltyFlash = 0;
+      updateHud();
+      overlay.classList.add("hidden");
+      hideToast();
+      playStartSound();
+      state.loopId = requestAnimationFrame(loop);
+    }
+
+    async function setupMediaPipe() {
+      if (state.mediaReady) return;
+      if (!window.Hands || !window.Camera) {
+        throw new Error("MediaPipe 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.");
+      }
+
+      hands = new Hands({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+      });
+      hands.setOptions({
+        maxNumHands: 1,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.72,
+        minTrackingConfidence: 0.68
+      });
+      hands.onResults(onHandResults);
+
+      camera = new Camera(video, {
+        width: 1280,
+        height: 720,
+        onFrame: async () => {
+          await hands.send({ image: video });
+        }
+      });
+      await camera.start();
+      state.mediaReady = true;
+    }
+
+    function onHandResults(results) {
+      const hand = results.multiHandLandmarks && results.multiHandLandmarks[0];
+      if (!hand) {
+        pointer.visible = pointer.practice;
+        if (state.running && !pointer.practice) showToast("손을 카메라 앞에 보여주세요.");
+        return;
+      }
+
+      hideToast();
+      const indexTip = hand[8];
+      pointer.visible = true;
+      pointer.targetX = clamp((1 - indexTip.x) * width(), 0, width());
+      pointer.targetY = clamp(indexTip.y * height(), 0, height());
+    }
+
+    function spawnBlock() {
+      const direction = state.beat % 2 === 0 ? 1 : -1;
+      const lane = lanes[Math.floor(Math.random() * lanes.length)];
+      const blockWidth = clamp(width() * 0.115, 64, 112);
+      const blockHeight = clamp(height() * 0.052, 34, 50);
+      const speed = 170 + Math.min(210, state.time * 7);
+      blocks.push({
+        x: lane * width(),
+        y: direction === 1 ? -blockHeight : height() + blockHeight,
+        w: blockWidth,
+        h: blockHeight,
+        color: colors[state.beat % colors.length],
+        speed,
+        direction,
+        hit: false
+      });
+      state.beat += 1;
+    }
+
+    function addSparks(x, y, color, amount) {
+      for (let i = 0; i < amount; i += 1) {
+        const angle = rand(0, Math.PI * 2);
+        const speed = rand(70, 290);
+        sparks.push({
+          x,
+          y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: rand(0.28, 0.76),
+          color
+        });
+      }
+    }
+
+    function hitBlock(block) {
+      block.hit = true;
+      state.combo += 1;
+      state.score += 100 + state.combo * 14;
+      addSparks(block.x, block.y, block.color, 26);
+      playHitSound(state.combo);
+      updateHud();
+    }
+
+    function missBlock(block) {
+      state.combo = 0;
+      state.miss += 1;
+      state.score = Math.max(0, state.score - 80);
+      state.penaltyFlash = 0.2;
+      addSparks(block.x, block.y, "#ff5268", 10);
+      playMissSound();
+      sayMissLine();
+      updateHud();
+    }
+
+    function blockTouchesPointer(block) {
+      const closestX = clamp(pointer.x, block.x - block.w / 2, block.x + block.w / 2);
+      const closestY = clamp(pointer.y, block.y - block.h / 2, block.y + block.h / 2);
+      return Math.hypot(pointer.x - closestX, pointer.y - closestY) <= pointer.radius;
+    }
+
+    function update(delta) {
+      state.time += delta;
+      state.spawnTimer -= delta;
+      state.penaltyFlash = Math.max(0, state.penaltyFlash - delta);
+      const beatInterval = Math.max(0.34, 0.76 - state.time * 0.007);
+
+      pointer.x += (pointer.targetX - pointer.x) * Math.min(1, delta * 16);
+      pointer.y += (pointer.targetY - pointer.y) * Math.min(1, delta * 16);
+
+      if (state.spawnTimer <= 0) {
+        spawnBlock();
+        state.spawnTimer = beatInterval;
+      }
+
+      for (let i = blocks.length - 1; i >= 0; i -= 1) {
+        const block = blocks[i];
+        block.y += block.speed * block.direction * delta;
+        if (!block.hit && pointer.visible && blockTouchesPointer(block)) {
+          hitBlock(block);
+          blocks.splice(i, 1);
+        } else if (
+          (block.direction === 1 && block.y - block.h / 2 > height()) ||
+          (block.direction === -1 && block.y + block.h / 2 < 0)
+        ) {
+          blocks.splice(i, 1);
+          missBlock(block);
+        }
+      }
+
+      for (let i = sparks.length - 1; i >= 0; i -= 1) {
+        const spark = sparks[i];
+        spark.life -= delta;
+        spark.x += spark.vx * delta;
+        spark.y += spark.vy * delta;
+        spark.vy += 220 * delta;
+        if (spark.life <= 0) sparks.splice(i, 1);
+      }
+    }
+
+    function drawBackground() {
+      const w = width();
+      const h = height();
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "rgba(7, 9, 13, 0.68)";
+      ctx.fillRect(0, 0, w, h);
+
+      const pulse = 0.5 + Math.sin(state.time * 5.2) * 0.5;
+      ctx.strokeStyle = `rgba(40, 228, 255, ${0.12 + pulse * 0.08})`;
+      ctx.lineWidth = 2;
+      for (const lane of lanes) {
+        const x = lane * w;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = "rgba(255, 77, 184, 0.5)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(0, h * 0.5);
+      ctx.lineTo(w, h * 0.5);
+      ctx.stroke();
+
+      ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
+      ctx.fillRect(0, 0, w, 4);
+      ctx.fillRect(0, h - 4, w, 4);
+
+      if (state.penaltyFlash > 0) {
+        ctx.fillStyle = `rgba(255, 82, 104, ${state.penaltyFlash * 1.7})`;
+        ctx.fillRect(0, 0, w, h);
+      }
+    }
+
+    function drawBlock(block) {
+      const pawGradient = ctx.createRadialGradient(0, 0, 4, 0, 0, block.w * 0.64);
+      pawGradient.addColorStop(0, "#ffffff");
+      pawGradient.addColorStop(0.28, block.color);
+      pawGradient.addColorStop(1, "rgba(255, 255, 255, 0.55)");
+      const toeY = -block.h * 0.28;
+      const padY = block.h * 0.14;
+
+      ctx.save();
+      ctx.translate(block.x, block.y);
+      if (block.direction === -1) ctx.rotate(Math.PI);
+      ctx.shadowColor = block.color;
+      ctx.shadowBlur = 26;
+      ctx.fillStyle = pawGradient;
+
+      ctx.beginPath();
+      ctx.ellipse(0, padY, block.w * 0.27, block.h * 0.28, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      const toes = [
+        [-0.31, toeY + block.h * 0.05, 0.15],
+        [-0.11, toeY - block.h * 0.05, 0.16],
+        [0.11, toeY - block.h * 0.05, 0.16],
+        [0.31, toeY + block.h * 0.05, 0.15]
+      ];
+      for (const [xFactor, y, size] of toes) {
+        ctx.beginPath();
+        ctx.ellipse(block.w * xFactor, y, block.w * size, block.h * 0.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+      ctx.lineWidth = 2;
+
+      ctx.beginPath();
+      ctx.ellipse(0, padY, block.w * 0.27, block.h * 0.28, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      for (const [xFactor, y, size] of toes) {
+        ctx.beginPath();
+        ctx.ellipse(block.w * xFactor, y, block.w * size, block.h * 0.2, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = "rgba(4, 5, 10, 0.24)";
+      ctx.beginPath();
+      ctx.ellipse(0, padY + block.h * 0.04, block.w * 0.12, block.h * 0.1, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawPointer() {
+      if (!pointer.visible) return;
+      const pulse = 0.5 + Math.sin(state.time * 13) * 0.5;
+      const halo = ctx.createRadialGradient(pointer.x, pointer.y, 4, pointer.x, pointer.y, 74);
+      halo.addColorStop(0, "rgba(255, 255, 255, 0.58)");
+      halo.addColorStop(0.28, `rgba(40, 228, 255, ${0.38 + pulse * 0.22})`);
+      halo.addColorStop(1, "rgba(255, 77, 184, 0)");
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(pointer.x, pointer.y, 74, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(pointer.x, pointer.y, pointer.radius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = pointer.practice ? "#ffc247" : "#28e4ff";
+      ctx.beginPath();
+      ctx.arc(pointer.x, pointer.y, 8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawSparks() {
+      for (const spark of sparks) {
+        ctx.globalAlpha = Math.max(0, spark.life * 1.55);
+        ctx.fillStyle = spark.color;
+        ctx.fillRect(spark.x - 3, spark.y - 3, 6, 6);
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    function draw() {
+      drawBackground();
+      blocks.forEach(drawBlock);
+      drawSparks();
+      drawPointer();
+    }
+
+    function loop(now) {
+      if (!state.running || state.paused) return;
+      const delta = Math.min(0.034, (now - state.last) / 1000 || 0);
+      state.last = now;
+      update(delta);
+      draw();
+      state.loopId = requestAnimationFrame(loop);
+    }
+
+    function pauseGame() {
+      if (!state.running) return;
+      state.paused = true;
+      playPauseSound();
+      setOverlay("일시정지", "스페이스바를 누르거나 시작 버튼을 눌러 다시 플레이하세요.", "계속하기");
+    }
+
+    function resumeGame() {
+      ensureSound();
+      state.paused = false;
+      state.last = performance.now();
+      overlay.classList.add("hidden");
+      playStartSound();
+      state.loopId = requestAnimationFrame(loop);
+    }
+
+    async function startCameraGame() {
+      try {
+        ensureSound();
+        startButton.disabled = true;
+        startButton.textContent = "카메라 준비 중...";
+        await setupMediaPipe();
+        resetRound(false);
+      } catch (error) {
+        setOverlay(
+          "카메라를 시작할 수 없습니다",
+          error.message || "브라우저 권한과 카메라 연결 상태를 확인해 주세요.",
+          "다시 시도"
+        );
+      } finally {
+        startButton.disabled = false;
+      }
+    }
+
+    function startPracticeGame() {
+      resetRound(true);
+      showToast("마우스로 연습 중입니다. 카메라 없이 규칙을 확인할 수 있어요.");
+      window.setTimeout(hideToast, 2600);
+    }
+
+    canvas.addEventListener("pointermove", (event) => {
+      if (!pointer.practice) return;
+      const rect = canvas.getBoundingClientRect();
+      pointer.targetX = clamp(event.clientX - rect.left, 0, width());
+      pointer.targetY = clamp(event.clientY - rect.top, 0, height());
+      pointer.visible = true;
+    });
+
+    canvas.addEventListener("pointerdown", (event) => {
+      if (!pointer.practice) return;
+      canvas.setPointerCapture(event.pointerId);
+      pointer.visible = true;
+    });
+
+    startButton.addEventListener("click", () => {
+      if (state.running && state.paused) {
+        resumeGame();
+      } else {
+        startCameraGame();
+      }
+    });
+
+    practiceButton.addEventListener("click", startPracticeGame);
+
+    window.addEventListener("keydown", (event) => {
+      if (event.code !== "Space") return;
+      event.preventDefault();
+      if (!state.running) return;
+      if (state.paused) resumeGame();
+      else pauseGame();
+    });
+
+    window.addEventListener("resize", resize);
+
+    resize();
+    updateHud();
+  </script>
+</body>
+</html>
