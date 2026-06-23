@@ -590,6 +590,7 @@
       const blockWidth = clamp(width() * 0.115, 64, 112);
       const blockHeight = clamp(height() * 0.052, 34, 50);
       const speed = 170 + Math.min(210, state.time * 7);
+      const pawType = direction === 1 ? "cat" : "dog";
       blocks.push({
         x: lane * width(),
         y: direction === 1 ? -blockHeight : height() + blockHeight,
@@ -598,6 +599,7 @@
         color: colors[state.beat % colors.length],
         speed,
         direction,
+        pawType,
         hit: false
       });
       state.beat += 1;
@@ -718,13 +720,86 @@
       }
     }
 
+    function drawPawPad(block, pawType, mode = "fill") {
+      const toeY = -block.h * 0.28;
+      const padY = block.h * 0.14;
+      const toes = pawType === "cat"
+        ? [
+            [-0.28, toeY + block.h * 0.06, 0.13, 0.18],
+            [-0.09, toeY - block.h * 0.06, 0.14, 0.18],
+            [0.09, toeY - block.h * 0.06, 0.14, 0.18],
+            [0.28, toeY + block.h * 0.06, 0.13, 0.18]
+          ]
+        : [
+            [-0.35, toeY + block.h * 0.07, 0.17, 0.22],
+            [-0.12, toeY - block.h * 0.05, 0.18, 0.23],
+            [0.12, toeY - block.h * 0.05, 0.18, 0.23],
+            [0.35, toeY + block.h * 0.07, 0.17, 0.22]
+          ];
+
+      const paint = () => {
+        if (mode === "stroke") ctx.stroke();
+        else ctx.fill();
+      };
+
+      ctx.beginPath();
+      ctx.ellipse(
+        0,
+        padY,
+        block.w * (pawType === "cat" ? 0.24 : 0.31),
+        block.h * (pawType === "cat" ? 0.26 : 0.31),
+        0,
+        0,
+        Math.PI * 2
+      );
+      paint();
+
+      for (const [xFactor, y, sizeX, sizeY] of toes) {
+        ctx.beginPath();
+        ctx.ellipse(block.w * xFactor, y, block.w * sizeX, block.h * sizeY, 0, 0, Math.PI * 2);
+        paint();
+      }
+
+      if (mode === "stroke") return;
+
+      if (pawType === "cat") {
+        ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
+        for (const [xFactor, y] of toes) {
+          ctx.beginPath();
+          ctx.moveTo(block.w * xFactor, y - block.h * 0.18);
+          ctx.lineTo(block.w * (xFactor - 0.035), y - block.h * 0.05);
+          ctx.lineTo(block.w * (xFactor + 0.035), y - block.h * 0.05);
+          ctx.closePath();
+          ctx.fill();
+        }
+      } else {
+        ctx.fillStyle = "rgba(4, 5, 10, 0.18)";
+        ctx.beginPath();
+        ctx.ellipse(0, padY + block.h * 0.04, block.w * 0.13, block.h * 0.1, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.72)";
+        ctx.lineWidth = 2;
+        for (const [xFactor, y, sizeX] of toes) {
+          ctx.beginPath();
+          ctx.moveTo(block.w * (xFactor - sizeX * 0.28), y - block.h * 0.19);
+          ctx.quadraticCurveTo(
+            block.w * xFactor,
+            y - block.h * 0.28,
+            block.w * (xFactor + sizeX * 0.28),
+            y - block.h * 0.19
+          );
+          ctx.stroke();
+        }
+      }
+    }
+
     function drawBlock(block) {
+      const pawType = block.pawType || (block.direction === 1 ? "cat" : "dog");
       const pawGradient = ctx.createRadialGradient(0, 0, 4, 0, 0, block.w * 0.64);
       pawGradient.addColorStop(0, "#ffffff");
       pawGradient.addColorStop(0.28, block.color);
       pawGradient.addColorStop(1, "rgba(255, 255, 255, 0.55)");
-      const toeY = -block.h * 0.28;
-      const padY = block.h * 0.14;
 
       ctx.save();
       ctx.translate(block.x, block.y);
@@ -732,41 +807,12 @@
       ctx.shadowColor = block.color;
       ctx.shadowBlur = 26;
       ctx.fillStyle = pawGradient;
-
-      ctx.beginPath();
-      ctx.ellipse(0, padY, block.w * 0.27, block.h * 0.28, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      const toes = [
-        [-0.31, toeY + block.h * 0.05, 0.15],
-        [-0.11, toeY - block.h * 0.05, 0.16],
-        [0.11, toeY - block.h * 0.05, 0.16],
-        [0.31, toeY + block.h * 0.05, 0.15]
-      ];
-      for (const [xFactor, y, size] of toes) {
-        ctx.beginPath();
-        ctx.ellipse(block.w * xFactor, y, block.w * size, block.h * 0.2, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      drawPawPad(block, pawType);
 
       ctx.shadowBlur = 0;
       ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
       ctx.lineWidth = 2;
-
-      ctx.beginPath();
-      ctx.ellipse(0, padY, block.w * 0.27, block.h * 0.28, 0, 0, Math.PI * 2);
-      ctx.stroke();
-
-      for (const [xFactor, y, size] of toes) {
-        ctx.beginPath();
-        ctx.ellipse(block.w * xFactor, y, block.w * size, block.h * 0.2, 0, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-
-      ctx.fillStyle = "rgba(4, 5, 10, 0.24)";
-      ctx.beginPath();
-      ctx.ellipse(0, padY + block.h * 0.04, block.w * 0.12, block.h * 0.1, 0, 0, Math.PI * 2);
-      ctx.fill();
+      drawPawPad(block, pawType, "stroke");
       ctx.restore();
     }
 
